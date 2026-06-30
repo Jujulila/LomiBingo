@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LomiBingo</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #f0f0f0;
+    overflow: hidden;
+    font-family: system-ui, -apple-system, sans-serif;
+  }
+
+  .container {
+    position: relative;
+    width: 1104px;
+    height: 1104px;
+    transform-origin: center center;
+    flex-shrink: 0; 
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(4, 248px);
+    grid-template-rows: repeat(4, 248px);
+    gap: 8px;
+    padding: 44px;
+    box-sizing: border-box;
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+  }
+
+  .overlay-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1104px;
+    height: 1104px;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .cell {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 15px;
+    padding: 10px;
+    font-weight: bold;
+    font-size: 18px;
+    transition: background 0.2s ease, transform 0.1s ease;
+    user-select: none;
+  }
+
+  .cell:active {
+    transform: scale(0.98);
+  }
+
+  .cell.checked { 
+    background: rgba(144, 238, 144, 0.9); 
+    text-decoration: line-through; 
+  }
+
+  /* Persistent Control Bar */
+  .control-bar {
+    position: fixed;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 8px 16px;
+    border-radius: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+    backdrop-filter: blur(5px);
+  }
+
+  .btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 20px;
+    background-color: #2563eb;
+    color: white;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    transition: background 0.2s;
+  }
+
+  .btn:hover { background-color: #1d4ed8; }
+  .btn-load { background-color: #4b5563; }
+  .btn-load:hover { background-color: #374151; }
+  #fileInput { display: none; }
+</style>
+
+<script src="./tasks.js"></script>
+
+</head>
+<body>
+
+<div class="control-bar">
+  <button class="btn" onclick="exportToFile()">Sauvegarder</button>
+  <button class="btn btn-load" onclick="document.getElementById('fileInput').click()">Charger</button>
+  <input type="file" id="fileInput" accept=".json" onchange="importFromFile(event)">
+</div>
+
+<div class="container" id="boardContainer">
+  <div class="grid" id="bingoBoard"></div>
+  <img src="./bingo2.png" class="overlay-image" alt="Bingo Overlay">
+</div>
+
+<script>
+  const board = document.getElementById('bingoBoard');
+  
+  // Generate the board using the tasks array from tasks.js
+  tasks.forEach((task, index) => {
+    const div = document.createElement('div');
+    div.className = 'cell';
+    div.innerText = task;
+    div.dataset.index = index;
+    div.onclick = () => {
+      div.classList.toggle('checked');
+      saveToLocalStorage();
+    };
+    board.appendChild(div);
+  });
+
+  // Scale board to fit viewport perfectly
+  function scaleBoard() {
+    const container = document.getElementById('boardContainer');
+    const scale = Math.min(window.innerWidth / 1104, window.innerHeight / 1104);
+    container.style.transform = `scale(${scale})`;
+  }
+
+  // --- SAVE SYSTEM LOGIC ---
+  function saveToLocalStorage() {
+    const checkedIndices = [];
+    document.querySelectorAll('.cell').forEach((cell, i) => {
+      if (cell.classList.contains('checked')) checkedIndices.push(i);
+    });
+    localStorage.setItem('bingo_progress', JSON.stringify(checkedIndices));
+  }
+
+  function loadFromLocalStorage() {
+    const saved = localStorage.getItem('bingo_progress');
+    if (!saved) return;
+    const checkedIndices = JSON.parse(saved);
+    applyCheckedState(checkedIndices);
+  }
+
+  function exportToFile() {
+    const checkedIndices = [];
+    document.querySelectorAll('.cell').forEach((cell, i) => {
+      if (cell.classList.contains('checked')) checkedIndices.push(i);
+    });
+    
+    const blob = new Blob([JSON.stringify(checkedIndices)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bingo-save-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importFromFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const checkedIndices = JSON.parse(e.target.result);
+        applyCheckedState(checkedIndices);
+        saveToLocalStorage();
+      } catch (err) {
+        alert("Sauvegarde invalide.");
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function applyCheckedState(indices) {
+    document.querySelectorAll('.cell').forEach((cell, i) => {
+      if (indices.includes(i)) {
+        cell.classList.add('checked');
+      } else {
+        cell.classList.remove('checked');
+      }
+    });
+  }
+
+  // Initialize
+  window.addEventListener('resize', scaleBoard);
+  scaleBoard(); 
+  loadFromLocalStorage();
+</script>
+
+</body>
+</html>
