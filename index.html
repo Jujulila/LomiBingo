@@ -20,7 +20,7 @@
 
   .container {
     position: relative;
-    width: 1104px;
+    width: 1104px; 
     height: 1104px;
     transform-origin: center center;
     flex-shrink: 0; 
@@ -54,7 +54,6 @@
     justify-content: center;
     align-items: center;
     text-align: center;
-    cursor: pointer;
     background: rgba(255, 255, 255, 0.7);
     border-radius: 15px;
     padding: 10px;
@@ -62,18 +61,17 @@
     font-size: 18px;
     transition: background 0.2s ease, transform 0.1s ease;
     user-select: none;
+    word-wrap: break-word;
+    border: 2px solid transparent;
+    cursor: pointer;
   }
 
-  .cell:active {
-    transform: scale(0.98);
-  }
-
+  .cell:active { transform: scale(0.98); }
   .cell.checked { 
     background: rgba(144, 238, 144, 0.9); 
     text-decoration: line-through; 
   }
 
-  /* Persistent Control Bar */
   .control-bar {
     position: fixed;
     bottom: 15px;
@@ -106,16 +104,13 @@
   .btn-load:hover { background-color: #374151; }
   #fileInput { display: none; }
 </style>
-
-<script src="./tasks.js"></script>
-
 </head>
 <body>
 
 <div class="control-bar">
-  <button class="btn" onclick="exportToFile()">Sauvegarder</button>
+  <button class="btn" onclick="exportBoard()">Sauvegarder</button>
   <button class="btn btn-load" onclick="document.getElementById('fileInput').click()">Charger</button>
-  <input type="file" id="fileInput" accept=".json" onchange="importFromFile(event)">
+  <input type="file" id="fileInput" accept=".json" onchange="importBoard(event)">
 </div>
 
 <div class="container" id="boardContainer">
@@ -125,89 +120,91 @@
 
 <script>
   const board = document.getElementById('bingoBoard');
-  
-  // Generate the board using the tasks array from tasks.js
-  tasks.forEach((task, index) => {
+
+  // Initialize 32 cells
+  for (let i = 0; i < 32; i++) {
     const div = document.createElement('div');
     div.className = 'cell';
-    div.innerText = task;
-    div.dataset.index = index;
+    div.innerText = "Load a board";
+    div.dataset.index = i;
+    
     div.onclick = () => {
       div.classList.toggle('checked');
-      saveToLocalStorage();
+      saveToLocalStorage(); 
     };
+    
     board.appendChild(div);
-  });
+  }
 
-  // Scale board to fit viewport perfectly
   function scaleBoard() {
     const container = document.getElementById('boardContainer');
-    const scale = Math.min(window.innerWidth / 1104, window.innerHeight / 1104);
+    const scale = Math.min(window.innerWidth / 2128, window.innerHeight / 1104);
     container.style.transform = `scale(${scale})`;
   }
 
-  // --- SAVE SYSTEM LOGIC ---
+  // --- SAVING AND LOADING LOGIC ---
+
   function saveToLocalStorage() {
-    const checkedIndices = [];
-    document.querySelectorAll('.cell').forEach((cell, i) => {
-      if (cell.classList.contains('checked')) checkedIndices.push(i);
+    const data = [];
+    document.querySelectorAll('.cell').forEach((cell) => {
+      data.push({
+        text: cell.innerText,
+        checked: cell.classList.contains('checked')
+      });
     });
-    localStorage.setItem('bingo_progress', JSON.stringify(checkedIndices));
+    localStorage.setItem('bingo_full_data', JSON.stringify(data));
   }
 
   function loadFromLocalStorage() {
-    const saved = localStorage.getItem('bingo_progress');
+    const saved = localStorage.getItem('bingo_full_data');
     if (!saved) return;
-    const checkedIndices = JSON.parse(saved);
-    applyCheckedState(checkedIndices);
+    const data = JSON.parse(saved);
+    applyDataToBoard(data);
   }
 
-  function exportToFile() {
-    const checkedIndices = [];
+  function applyDataToBoard(data) {
     document.querySelectorAll('.cell').forEach((cell, i) => {
-      if (cell.classList.contains('checked')) checkedIndices.push(i);
+      if (data[i]) {
+        cell.innerText = data[i].text;
+        if (data[i].checked) cell.classList.add('checked');
+        else cell.classList.remove('checked');
+      }
     });
+  }
+
+  function exportBoard() {
+    saveToLocalStorage(); 
+    const data = localStorage.getItem('bingo_full_data');
     
-    const blob = new Blob([JSON.stringify(checkedIndices)], { type: "application/json" });
+    const blob = new Blob([data], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `bingo-save-${new Date().toISOString().slice(0,10)}.json`;
+    a.download = `my-bingo-board-${new Date().toISOString().slice(0,10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
-  function importFromFile(event) {
+  function importBoard(event) {
     const file = event.target.files[0];
     if (!file) return;
     
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
-        const checkedIndices = JSON.parse(e.target.result);
-        applyCheckedState(checkedIndices);
+        const data = JSON.parse(e.target.result);
+        applyDataToBoard(data);
         saveToLocalStorage();
       } catch (err) {
-        alert("Sauvegarde invalide.");
+        alert("Invalid save file format.");
       }
     };
     reader.readAsText(file);
     event.target.value = '';
   }
 
-  function applyCheckedState(indices) {
-    document.querySelectorAll('.cell').forEach((cell, i) => {
-      if (indices.includes(i)) {
-        cell.classList.add('checked');
-      } else {
-        cell.classList.remove('checked');
-      }
-    });
-  }
-
-  // Initialize
   window.addEventListener('resize', scaleBoard);
   scaleBoard(); 
   loadFromLocalStorage();
